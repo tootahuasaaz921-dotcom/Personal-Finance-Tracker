@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ledger — Accounting Workbook</title>
+<style>
+  /* ============================================================
+     DESIGN TOKENS — "Ledger paper" theme
+     Paper background + ruled lines + a red margin rule, like a
+     real accounting ledger book. Navy ink for text, teal for
+     credit/positive, red-ink for debit/negative-in-the-red.
+     ============================================================ */
+  :root{
+    --paper:      #EFEAE0;
+    --paper-line: #C9C1AE;
+    --margin-red: #A3312A;
+    --ink:        #1B2A4A;
+    --ink-soft:   #5B6B85;
+    --teal:       #2F6F5E;
+    --red:        #A3312A;
+    --gold:       #B08D57;
+    --card:       #F8F5EE;
+    --border:     #D8D0BC;
+    --font-display: Georgia, 'Times New Roman', serif;
+    --font-body:    -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-mono:    ui-monospace, 'SF Mono', 'Cascadia Code', Consolas, monospace;
+  }
+
+  *{ box-sizing:border-box; }
+
+  body{
+    margin:0;
+    font-family:var(--font-body);
+    color:var(--ink);
+    background:
+      repeating-linear-gradient(
+        to bottom,
+        transparent, transparent 27px,
+        var(--paper-line) 27px, var(--paper-line) 28px
+      ),
+      var(--paper);
+    min-height:100vh;
+    padding: 24px 24px 24px 56px;
+    position:relative;
+  }
+  /* the red vertical margin rule of a ledger book */
+  body::before{
+    content:'';
+    position:fixed;
+    top:0; bottom:0; left:40px;
+    width:2px;
+    background:var(--margin-red);
+    opacity:0.55;
+  }
+
+  h1{
+    font-family:var(--font-display);
+    font-size:28px;
+    font-weight:700;
+    letter-spacing:0.3px;
+    margin:0 0 2px 0;
+  }
+  .subtitle{ color:var(--ink-soft); font-size:13px; margin-bottom:20px; }
+
+  /* ---------- Tabs styled like ledger dividers ---------- */
+  .tabs{
+    display:flex;
+    gap:2px;
+    margin-bottom:18px;
+    border-bottom:2px solid var(--ink);
+  }
+  .tab{
+    font-family:var(--font-display);
+    font-size:14px;
+    padding:9px 18px;
+    background:var(--paper);
+    color:var(--ink-soft);
+    border:1px solid var(--border);
+    border-bottom:none;
+    border-radius:6px 6px 0 0;
+    cursor:pointer;
+    transition:all .15s ease;
+  }
+  .tab:hover{ color:var(--ink); }
+  .tab.active{
+    background:var(--card);
+    color:var(--ink);
+    font-weight:700;
+    border-color:var(--ink);
+    border-bottom:2px solid var(--card);
+    margin-bottom:-2px;
+  }
+
+  /* ---------- Date filter stamp bar ---------- */
+  .filterbar{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    background:var(--card);
+    border:1px solid var(--border);
+    border-left:4px solid var(--gold);
+    border-radius:4px;
+    padding:12px 16px;
+    margin-bottom:20px;
+    flex-wrap:wrap;
+    font-size:13px;
+  }
+  .filterbar label{ color:var(--ink-soft); margin-right:6px; }
+  .filterbar input[type=date]{
+    font-family:var(--font-mono);
+    font-size:13px;
+    padding:5px 8px;
+    border:1px solid var(--border);
+    border-radius:4px;
+    background:#fff;
+    color:var(--ink);
+  }
+  .filterbar .stamp{
+    margin-left:auto;
+    font-family:var(--font-display);
+    font-style:italic;
+    color:var(--ink-soft);
+    font-size:12px;
+  }
+
+  .panel{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:20px;
+    margin-bottom:20px;
+  }
+  .panel h2{
+    font-family:var(--font-display);
+    font-size:17px;
+    margin:0 0 14px 0;
+    border-bottom:1px solid var(--border);
+    padding-bottom:8px;
+  }
+
+  /* ---------- Forms ---------- */
+  .form-grid{
+    display:grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr auto;
+    gap:10px;
+    align-items:end;
+  }
+  .field label{
+    display:block;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.5px;
+    color:var(--ink-soft);
+    margin-bottom:4px;
+  }
+  .field input, .field select{
+    width:100%;
+    padding:8px 9px;
+    border:1px solid var(--border);
+    border-radius:4px;
+    background:#fff;
+    color:var(--ink);
+    font-family:var(--font-body);
+    font-size:13px;
+  }
+  button{
+    font-family:var(--font-body);
+    font-weight:600;
+    font-size:13px;
+    padding:9px 16px;
+    border:none;
+    border-radius:4px;
+    background:var(--ink);
+    color:var(--paper);
+    cursor:pointer;
+    transition:opacity .15s ease;
+  }
+  button:hover{ opacity:0.85; }
+  button.secondary{
+    background:transparent;
+    color:var(--ink-soft);
+    border:1px solid var(--border);
+  }
+  button.danger{ background:var(--red); }
+
+  /* ---------- Tables ---------- */
+  table{ width:100%; border-collapse:collapse; font-size:13px; }
+  th{
+    text-align:left;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.4px;
+    color:var(--ink-soft);
+    border-bottom:1px solid var(--ink);
+    padding:8px 6px;
+  }
+  td{
+    padding:8px 6px;
+    border-bottom:1px solid var(--border);
+    font-family:var(--font-mono);
+  }
+  td.text{ font-family:var(--font-body); }
+  tr:hover td{ background:rgba(0,0,0,0.02); }
+  .amt{ text-align:right; }
+  .amt.neg{ color:var(--red); }
+  .amt.pos{ color:var(--teal); }
+  .total-row td{ font-weight:700; border-top:2px solid var(--ink); border-bottom:none; }
+  .section-row td{
+    font-weight:700;
+    color:var(--ink-soft);
+    background:rgba(176,141,87,0.08);
+    padding-top:12px;
+  }
+  .empty{ color:var(--ink-soft); font-style:italic; padding:16px 0; }
+  .del-btn{
+    background:none; border:none; color:var(--red);
+    cursor:pointer; font-size:15px; padding:0 4px;
+  }
+  .check-ok{ color:var(--teal); font-weight:700; }
+  .check-bad{ color:var(--red); font-weight:700; }
+  .hint{ font-size:12px; color:var(--ink-soft); margin-top:8px; }
+
+  @media (max-width: 800px){
+    .form-grid{ grid-template-columns:1fr 1fr; }
+    body{ padding:16px 16px 16px 34px; }
+    body::before{ left:22px; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Ledger</h1>
+<div class="subtitle">A working double-entry book — one entry updates the P&amp;L, Balance Sheet and Cash Flow together.</div>
+
+<div class="tabs" id="tabs"></div>
+
+<div class="filterbar">
+  <div><label for="fromDate">From</label><input type="date" id="fromDate"></div>
+  <div><label for="toDate">To (also used as Balance Sheet "as of")</label><input type="date" id="toDate"></div>
+  <div class="stamp" id="statusStamp">loading…</div>
+</div>
+
+<div id="content"></div>
+
+<script>
+/* ==================================================================
+   DATA MODEL
+   - accounts: {id, name, type, isCash}
+       type ∈ asset | liability | equity | income | expense
+   - entries: {id, date, description, debitId, creditId, amount}
+   Stored together in ONE storage key to keep saves cheap.
+   ================================================================== */
+
+const NORMAL_DEBIT = new Set(['asset','expense']);   // these increase on the debit side
+const TYPE_LABELS = { asset:'Asset', liability:'Liability', equity:'Equity', income:'Income', expense:'Expense' };
+
+let DATA = { accounts: [], entries: [] };
+let activeTab = 'entry';
+
+// Default chart of accounts, seeded once on first run
+function defaultAccounts(){
+  return [
+    { id:'a1', name:'Cash',                 type:'asset',     isCash:true  },
+    { id:'a2', name:'Bank',                 type:'asset',     isCash:true  },
+    { id:'a3', name:'Accounts Receivable',  type:'asset',     isCash:false },
+    { id:'a4', name:'Inventory',            type:'asset',     isCash:false },
+    { id:'l1', name:'Accounts Payable',     type:'liability', isCash:false },
+    { id:'l2', name:'Loans Payable',        type:'liability', isCash:false },
+    { id:'e1', name:"Owner's Equity",       type:'equity',    isCash:false },
+    { id:'i1', name:'Sales Revenue',        type:'income',    isCash:false },
+    { id:'i2', name:'Service Revenue',      type:'income',    isCash:false },
+    { id:'x1', name:'Rent Expense',         type:'expense',   isCash:false },
+    { id:'x2', name:'Salaries Expense',     type:'expense',   isCash:false },
+    { id:'x3', name:'Utilities Expense',    type:'expense',   isCash:false },
+    { id:'x4', name:'Office Supplies',      type:'expense',   isCash:false },
+    { id:'x5', name:'Misc Expense',         type:'expense',   isCash:false },
+  ];
+}
+
+function uid(prefix){ return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+function fmt(n){
+  const v = Math.round((n + Number.EPSILON) * 100) / 100;
+  return v.toLocaleString('en-IN', { minimumFractionDigits:2, maximumFractionDigits:2 });
+}
+function acctById(id){ return DATA.accounts.find(a => a.id === id); }
+function monthKey(dateStr){ return dateStr.slice(0,7); } // YYYY-MM
+function monthLabel(key){
+  const [y,m] = key.split('-');
+  return new Date(y, m-1, 1).toLocaleDateString('en-US', { month:'short', year:'numeric' });
+}
+
+/* ---------------- persistence ---------------- */
+async function loadData(){
+  try{
+    const res = await window.storage.get('ledger-data', false);
+    if(res && res.value){
+      DATA = JSON.parse(res.value);
+    } else {
+      DATA = { accounts: defaultAccounts(), entries: [] };
+      await saveData();
+    }
+  }catch(e){
+    DATA = { accounts: defaultAccounts(), entries: [] };
+  }
+}
+async function saveData(){
+  document.getElementById('statusStamp').textContent = 'saving…';
+  try{
+    await window.storage.set('ledger-data', JSON.stringify(DATA), false);
+    document.getElementById('statusStamp').textContent = 'saved ✓';
+  }catch(e){
+    document.getElementById('statusStamp').textContent = 'save failed — changes may be lost';
+  }
+}
+
+/* ==================================================================
+   ACCOUNTING ENGINE
+   ================================================================== */
+
+// Net movement on an account from entries within [from, to] (inclusive).
+// Returns signed value in the account's own "normal balance" direction.
+function accountMovement(accountId, from, to){
+  const acct = acctById(accountId);
+  if(!acct) return 0;
+  let debitTotal = 0, creditTotal = 0;
+  for(const e of DATA.entries){
+    if(from && e.date < from) continue;
+    if(to && e.date > to) continue;
+    if(e.debitId === accountId) debitTotal += e.amount;
+    if(e.creditId === accountId) creditTotal += e.amount;
+  }
+  return NORMAL_DEBIT.has(acct.type) ? (debitTotal - creditTotal) : (creditTotal - debitTotal);
+}
+
+function accountsByType(type){ return DATA.accounts.filter(a => a.type === type); }
+
+// P&L for a period: totals + month-wise breakdown
+function computePL(from, to){
+  const months = {};
+  for(const e of DATA.entries){
+    if(from && e.date < from) continue;
+    if(to && e.date > to) continue;
+    const d = acctById(e.debitId), c = acctById(e.creditId);
+    const mk = monthKey(e.date);
+    if(!months[mk]) months[mk] = { income:0, expense:0 };
+    if(c && c.type === 'income')  months[mk].income  += e.amount;
+    if(d && d.type === 'income')  months[mk].income  -= e.amount; // contra entry against income
+    if(d && d.type === 'expense') months[mk].expense += e.amount;
+    if(c && c.type === 'expense') months[mk].expense -= e.amount;
+  }
+  const totalIncome  = accountsByType('income').reduce((s,a)=> s + accountMovement(a.id, from, to), 0);
+  const totalExpense = accountsByType('expense').reduce((s,a)=> s + accountMovement(a.id, from, to), 0);
+  return { months, totalIncome, totalExpense, net: totalIncome - totalExpense };
+}
+
+// Balance Sheet as of a date. Retained earnings = cumulative net income from inception to that date.
+function computeBalanceSheet(asOf){
+  const assets      = accountsByType('asset').map(a => ({ ...a, balance: accountMovement(a.id, null, asOf) }));
+  const liabilities = accountsByType('liability').map(a => ({ ...a, balance: accountMovement(a.id, null, asOf) }));
+  const equity      = accountsByType('equity').map(a => ({ ...a, balance: accountMovement(a.id, null, asOf) }));
+  const pl = computePL(null, asOf);
+  const totalAssets      = assets.reduce((s,a)=>s+a.balance,0);
+  const totalLiabilities = liabilities.reduce((s,a)=>s+a.balance,0);
+  const totalEquityBase  = equity.reduce((s,a)=>s+a.balance,0);
+  const totalEquity      = totalEquityBase + pl.net; // retained earnings folded in
+  return { assets, liabilities, equity, retainedEarnings: pl.net, totalAssets, totalLiabilities, totalEquity,
+           balances: Math.abs(totalAssets - (totalLiabilities + totalEquity)) < 0.01 };
+}
+
+// Cash Flow: month-wise net movement across accounts flagged isCash
+function computeCashFlow(from, to){
+  const cashAccounts = DATA.accounts.filter(a => a.isCash);
+  const months = {};
+  for(const e of DATA.entries){
+    if(from && e.date < from) continue;
+    if(to && e.date > to) continue;
+    const touchesCashDebit  = cashAccounts.find(a => a.id === e.debitId);
+    const touchesCashCredit = cashAccounts.find(a => a.id === e.creditId);
+    if(!touchesCashDebit && !touchesCashCredit) continue;
+    const mk = monthKey(e.date);
+    if(!months[mk]) months[mk] = { inflow:0, outflow:0, lines:[] };
+    if(touchesCashDebit){  months[mk].inflow  += e.amount; months[mk].lines.push({...e, dir:'in'}); }
+    if(touchesCashCredit){ months[mk].outflow += e.amount; months[mk].lines.push({...e, dir:'out'}); }
+  }
+  const totalIn  = Object.values(months).reduce((s,m)=>s+m.inflow,0);
+  const totalOut = Object.values(months).reduce((s,m)=>s+m.outflow,0);
+  return { months, totalIn, totalOut, net: totalIn - totalOut };
+}
+
+/* ==================================================================
+   RENDERING
+   ================================================================== */
+
+function getFilterDates(){
+  return { from: document.getElementById('fromDate').value || null,
+           to:   document.getElementById('toDate').value   || null };
+}
+
+function renderTabs(){
+  const tabs = [
+    { id:'entry', label:'General Entry' },
+    { id:'pl',    label:'P&L' },
+    { id:'bs',    label:'Balance Sheet' },
+    { id:'cf',    label:'Cash Flow' },
+  ];
+  document.getElementById('tabs').innerHTML = tabs.map(t =>
+    `<div class="tab ${activeTab===t.id?'active':''}" data-tab="${t.id}">${t.label}</div>`
+  ).join('');
+  document.querySelectorAll('.tab').forEach(el=>{
+    el.addEventListener('click', ()=>{ activeTab = el.dataset.tab; renderAll(); });
+  });
+}
+
+function accountOptions(selectedId){
+  return DATA.accounts.map(a =>
+    `<option value="${a.id}" ${a.id===selectedId?'selected':''}>${a.name} (${TYPE_LABELS[a.type]})</option>`
+  ).join('');
+}
+
+function renderEntryTab(){
+  const rows = [...DATA.entries].sort((a,b)=> b.date.localeCompare(a.date));
+  return `
+    <div class="panel">
+      <h2>New Journal Entry</h2>
+      <div class="form-grid">
+        <div class="field"><label>Date</label><input type="date" id="ne-date" value="${new Date().toISOString().slice(0,10)}"></div>
+        <div class="field"><label>Debit Account</label><select id="ne-debit">${accountOptions()}</select></div>
+        <div class="field"><label>Credit Account</label><select id="ne-credit">${accountOptions()}</select></div>
+        <div class="field"><label>Amount</label><input type="number" id="ne-amount" step="0.01" min="0" placeholder="0.00"></div>
+        <button id="ne-add">Add Entry</button>
+      </div>
+      <div class="field" style="margin-top:10px;">
+        <label>Description</label>
+        <input type="text" id="ne-desc" placeholder="e.g. Paid rent for August">
+      </div>
+      <div class="hint">Every entry debits one account and credits another for the same amount — that's what keeps the books balanced.</div>
+    </div>
+
+    <div class="panel">
+      <h2>Manage Accounts</h2>
+      <div class="form-grid" style="grid-template-columns:2fr 1fr 1fr auto;">
+        <div class="field"><label>Account Name</label><input type="text" id="na-name" placeholder="e.g. Equipment"></div>
+        <div class="field"><label>Type</label>
+          <select id="na-type">
+            <option value="asset">Asset</option>
+            <option value="liability">Liability</option>
+            <option value="equity">Equity</option>
+            <option value="income">Income</option>
+            <option value="expense">Expense</option>
+          </select>
+        </div>
+        <div class="field"><label>Treat as Cash?</label>
+          <select id="na-cash"><option value="no">No</option><option value="yes">Yes</option></select>
+        </div>
+        <button id="na-add" class="secondary">Add Account</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>All Entries (${rows.length})</h2>
+      ${rows.length===0 ? '<div class="empty">No entries yet — add your first one above.</div>' : `
+      <table>
+        <thead><tr><th>Date</th><th>Description</th><th>Debit</th><th>Credit</th><th class="amt">Amount</th><th></th></tr></thead>
+        <tbody>
+          ${rows.map(e => `
+            <tr>
+              <td>${e.date}</td>
+              <td class="text">${e.description || '—'}</td>
+              <td class="text">${acctById(e.debitId)?.name || '—'}</td>
+              <td class="text">${acctById(e.creditId)?.name || '—'}</td>
+              <td class="amt">${fmt(e.amount)}</td>
+              <td><button class="del-btn" data-del="${e.id}" title="Delete entry">✕</button></td>
+            </tr>`).join('')}
+        </tbody>
+      </table>`}
+    </div>
+  `;
+}
+
+function renderPLTab(){
+  const { from, to } = getFilterDates();
+  const pl = computePL(from, to);
+  const monthKeys = Object.keys(pl.months).sort();
+  return `
+    <div class="panel">
+      <h2>Profit &amp; Loss ${from||to ? `(${from||'inception'} → ${to||'today'})` : '(all time)'}</h2>
+      ${monthKeys.length===0 ? '<div class="empty">No activity in this range.</div>' : `
+      <table>
+        <thead><tr><th>Month</th><th class="amt">Income</th><th class="amt">Expense</th><th class="amt">Net</th></tr></thead>
+        <tbody>
+          ${monthKeys.map(mk=>{
+            const m = pl.months[mk], net = m.income - m.expense;
+            return `<tr><td class="text">${monthLabel(mk)}</td>
+              <td class="amt pos">${fmt(m.income)}</td>
+              <td class="amt neg">${fmt(m.expense)}</td>
+              <td class="amt ${net>=0?'pos':'neg'}">${fmt(net)}</td></tr>`;
+          }).join('')}
+          <tr class="total-row">
+            <td>Total</td>
+            <td class="amt pos">${fmt(pl.totalIncome)}</td>
+            <td class="amt neg">${fmt(pl.totalExpense)}</td>
+            <td class="amt ${pl.net>=0?'pos':'neg'}">${fmt(pl.net)}</td>
+          </tr>
+        </tbody>
+      </table>`}
+    </div>
+  `;
+}
+
+function renderBSTab(){
+  const { to } = getFilterDates();
+  const asOf = to || new Date().toISOString().slice(0,10);
+  const bs = computeBalanceSheet(asOf);
+  const line = (a) => `<tr><td class="text">${a.name}</td><td class="amt ${a.balance<0?'neg':''}">${fmt(a.balance)}</td></tr>`;
+  return `
+    <div class="panel">
+      <h2>Balance Sheet — as of ${asOf}</h2>
+      <table>
+        <thead><tr><th>Account</th><th class="amt">Balance</th></tr></thead>
+        <tbody>
+          <tr class="section-row"><td colspan="2">Assets</td></tr>
+          ${bs.assets.length? bs.assets.map(line).join('') : '<tr><td class="empty" colspan="2">None</td></tr>'}
+          <tr class="total-row"><td>Total Assets</td><td class="amt">${fmt(bs.totalAssets)}</td></tr>
+
+          <tr class="section-row"><td colspan="2">Liabilities</td></tr>
+          ${bs.liabilities.length? bs.liabilities.map(line).join('') : '<tr><td class="empty" colspan="2">None</td></tr>'}
+          <tr class="total-row"><td>Total Liabilities</td><td class="amt">${fmt(bs.totalLiabilities)}</td></tr>
+
+          <tr class="section-row"><td colspan="2">Equity</td></tr>
+          ${bs.equity.map(line).join('')}
+          <tr><td class="text">Retained Earnings (cumulative)</td><td class="amt ${bs.retainedEarnings<0?'neg':''}">${fmt(bs.retainedEarnings)}</td></tr>
+          <tr class="total-row"><td>Total Equity</td><td class="amt">${fmt(bs.totalEquity)}</td></tr>
+        </tbody>
+      </table>
+      <div class="hint">
+        Assets ${fmt(bs.totalAssets)} vs Liabilities + Equity ${fmt(bs.totalLiabilities + bs.totalEquity)} —
+        <span class="${bs.balances?'check-ok':'check-bad'}">${bs.balances?'balanced ✓':'NOT balanced — check entries'}</span>
+      </div>
+    </div>
+  `;
+}
+
+function renderCFTab(){
+  const { from, to } = getFilterDates();
+  const cf = computeCashFlow(from, to);
+  const monthKeys = Object.keys(cf.months).sort();
+  return `
+    <div class="panel">
+      <h2>Cash Flow ${from||to ? `(${from||'inception'} → ${to||'today'})` : '(all time)'}</h2>
+      <div class="hint" style="margin-bottom:10px;">Tracks movement across accounts flagged as Cash (default: Cash, Bank).</div>
+      ${monthKeys.length===0 ? '<div class="empty">No cash movement in this range.</div>' : `
+      <table>
+        <thead><tr><th>Month</th><th class="amt">Inflow</th><th class="amt">Outflow</th><th class="amt">Net</th></tr></thead>
+        <tbody>
+          ${monthKeys.map(mk=>{
+            const m = cf.months[mk], net = m.inflow - m.outflow;
+            return `<tr><td class="text">${monthLabel(mk)}</td>
+              <td class="amt pos">${fmt(m.inflow)}</td>
+              <td class="amt neg">${fmt(m.outflow)}</td>
+              <td class="amt ${net>=0?'pos':'neg'}">${fmt(net)}</td></tr>`;
+          }).join('')}
+          <tr class="total-row">
+            <td>Total</td>
+            <td class="amt pos">${fmt(cf.totalIn)}</td>
+            <td class="amt neg">${fmt(cf.totalOut)}</td>
+            <td class="amt ${cf.net>=0?'pos':'neg'}">${fmt(cf.net)}</td>
+          </tr>
+        </tbody>
+      </table>`}
+    </div>
+  `;
+}
+
+function renderAll(){
+  renderTabs();
+  const content = document.getElementById('content');
+  if(activeTab==='entry') content.innerHTML = renderEntryTab();
+  else if(activeTab==='pl') content.innerHTML = renderPLTab();
+  else if(activeTab==='bs') content.innerHTML = renderBSTab();
+  else if(activeTab==='cf') content.innerHTML = renderCFTab();
+  attachHandlers();
+}
+
+function attachHandlers(){
+  const addBtn = document.getElementById('ne-add');
+  if(addBtn){
+    addBtn.addEventListener('click', async ()=>{
+      const date = document.getElementById('ne-date').value;
+      const debitId = document.getElementById('ne-debit').value;
+      const creditId = document.getElementById('ne-credit').value;
+      const amount = parseFloat(document.getElementById('ne-amount').value);
+      const description = document.getElementById('ne-desc').value.trim();
+      if(!date || !debitId || !creditId || !amount || amount<=0){
+        alert('Please fill date, both accounts, and a positive amount.'); return;
+      }
+      if(debitId === creditId){
+        alert('Debit and Credit accounts must be different.'); return;
+      }
+      DATA.entries.push({ id:uid('e'), date, debitId, creditId, amount, description });
+      await saveData();
+      renderAll();
+    });
+  }
+  const acctBtn = document.getElementById('na-add');
+  if(acctBtn){
+    acctBtn.addEventListener('click', async ()=>{
+      const name = document.getElementById('na-name').value.trim();
+      const type = document.getElementById('na-type').value;
+      const isCash = document.getElementById('na-cash').value === 'yes';
+      if(!name){ alert('Enter an account name.'); return; }
+      DATA.accounts.push({ id: uid(type[0]), name, type, isCash });
+      await saveData();
+      renderAll();
+    });
+  }
+  document.querySelectorAll('[data-del]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      if(!confirm('Delete this entry? This cannot be undone.')) return;
+      DATA.entries = DATA.entries.filter(e => e.id !== btn.dataset.del);
+      await saveData();
+      renderAll();
+    });
+  });
+}
+
+document.getElementById('fromDate').addEventListener('change', renderAll);
+document.getElementById('toDate').addEventListener('change', renderAll);
+
+/* ---------------- boot ---------------- */
+(async function init(){
+  await loadData();
+  renderAll();
+})();
+</script>
+</body>
+</html>
