@@ -461,6 +461,19 @@ function renderEntryTab(){
         </div>
         <button id="na-add" class="secondary">Add Account</button>
       </div>
+      <table style="margin-top:14px;">
+        <thead><tr><th>Account</th><th>Type</th><th>Cash?</th><th></th></tr></thead>
+        <tbody>
+          ${DATA.accounts.map(a => `
+            <tr>
+              <td class="text">${a.name}</td>
+              <td class="text">${TYPE_LABELS[a.type]}</td>
+              <td><input type="checkbox" data-cash-toggle="${a.id}" ${a.isCash ? 'checked' : ''}></td>
+              <td><button class="del-btn" data-del-acct="${a.id}" title="Delete account">✕</button></td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+      <div class="hint">Only Cash and Bank should normally have "Cash?" checked — that's what the Cash Flow tab uses to decide inflow vs outflow.</div>
     </div>
 
     <div class="panel">
@@ -624,6 +637,23 @@ function attachHandlers(){
     btn.addEventListener('click', async ()=>{
       if(!confirm('Delete this entry? This cannot be undone.')) return;
       DATA.entries = DATA.entries.filter(e => e.id !== btn.dataset.del);
+      await saveData();
+      renderAll();
+    });
+  });
+  document.querySelectorAll('[data-cash-toggle]').forEach(cb=>{
+    cb.addEventListener('change', async ()=>{
+      const acct = acctById(cb.dataset.cashToggle);
+      if(acct){ acct.isCash = cb.checked; await saveData(); renderAll(); }
+    });
+  });
+  document.querySelectorAll('[data-del-acct]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const id = btn.dataset.delAcct;
+      const inUse = DATA.entries.some(e => e.debitId === id || e.creditId === id);
+      if(inUse){ alert('This account is used in existing entries and cannot be deleted. Uncheck "Cash?" instead if that was the only issue.'); return; }
+      if(!confirm('Delete this account?')) return;
+      DATA.accounts = DATA.accounts.filter(a => a.id !== id);
       await saveData();
       renderAll();
     });
