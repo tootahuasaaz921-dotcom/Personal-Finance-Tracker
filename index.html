@@ -290,12 +290,17 @@ function monthLabel(key){
   return new Date(y, m-1, 1).toLocaleDateString('en-US', { month:'short', year:'numeric' });
 }
 
-/* ---------------- persistence ---------------- */
+/* ---------------- persistence ----------------
+   Uses browser localStorage — works on any static host (GitHub Pages
+   included), unlike window.storage which only works inside Claude.ai's
+   artifact preview. Data persists per-browser, per-device. */
+const STORAGE_KEY = 'ledger-data';
+
 async function loadData(){
   try{
-    const res = await window.storage.get('ledger-data', false);
-    if(res && res.value){
-      DATA = JSON.parse(res.value);
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw){
+      DATA = JSON.parse(raw);
     } else {
       DATA = { accounts: defaultAccounts(), entries: [] };
       await saveData();
@@ -305,12 +310,13 @@ async function loadData(){
   }
 }
 async function saveData(){
-  document.getElementById('statusStamp').textContent = 'saving…';
+  const stamp = document.getElementById('statusStamp');
+  stamp.textContent = 'saving…';
   try{
-    await window.storage.set('ledger-data', JSON.stringify(DATA), false);
-    document.getElementById('statusStamp').textContent = 'saved ✓';
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(DATA));
+    stamp.textContent = 'saved ✓';
   }catch(e){
-    document.getElementById('statusStamp').textContent = 'save failed — changes may be lost';
+    stamp.textContent = 'save failed — changes may be lost';
   }
 }
 
