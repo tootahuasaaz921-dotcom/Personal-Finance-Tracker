@@ -304,10 +304,12 @@ async function loadData(){
     } else {
       DATA = { accounts: defaultAccounts(), entries: [] };
       await saveData();
+      return;
     }
   }catch(e){
     DATA = { accounts: defaultAccounts(), entries: [] };
   }
+  document.getElementById('statusStamp').textContent = 'ready ✓';
 }
 async function saveData(){
   const stamp = document.getElementById('statusStamp');
@@ -501,9 +503,31 @@ function renderPLTab(){
   const { from, to } = getFilterDates();
   const pl = computePL(from, to);
   const monthKeys = Object.keys(pl.months).sort();
+
+  const incomeLines  = accountsByType('income').map(a => ({ name:a.name, amt: accountMovement(a.id, from, to) })).filter(l => l.amt !== 0);
+  const expenseLines = accountsByType('expense').map(a => ({ name:a.name, amt: accountMovement(a.id, from, to) })).filter(l => l.amt !== 0);
+
   return `
     <div class="panel">
-      <h2>Profit &amp; Loss ${from||to ? `(${from||'inception'} → ${to||'today'})` : '(all time)'}</h2>
+      <h2>Profit &amp; Loss — Detail ${from||to ? `(${from||'inception'} → ${to||'today'})` : '(all time)'}</h2>
+      <table>
+        <thead><tr><th>Account</th><th class="amt">Amount</th></tr></thead>
+        <tbody>
+          <tr class="section-row"><td colspan="2">Income</td></tr>
+          ${incomeLines.length ? incomeLines.map(l=>`<tr><td class="text">${l.name}</td><td class="amt pos">${fmt(l.amt)}</td></tr>`).join('') : '<tr><td class="empty" colspan="2">No income in this range</td></tr>'}
+          <tr class="total-row"><td>Total Income</td><td class="amt pos">${fmt(pl.totalIncome)}</td></tr>
+
+          <tr class="section-row"><td colspan="2">Expense</td></tr>
+          ${expenseLines.length ? expenseLines.map(l=>`<tr><td class="text">${l.name}</td><td class="amt neg">${fmt(l.amt)}</td></tr>`).join('') : '<tr><td class="empty" colspan="2">No expense in this range</td></tr>'}
+          <tr class="total-row"><td>Total Expense</td><td class="amt neg">${fmt(pl.totalExpense)}</td></tr>
+
+          <tr class="total-row"><td>Net Income</td><td class="amt ${pl.net>=0?'pos':'neg'}">${fmt(pl.net)}</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <h2>Profit &amp; Loss — Month-wise Summary</h2>
       ${monthKeys.length===0 ? '<div class="empty">No activity in this range.</div>' : `
       <table>
         <thead><tr><th>Month</th><th class="amt">Income</th><th class="amt">Expense</th><th class="amt">Net</th></tr></thead>
