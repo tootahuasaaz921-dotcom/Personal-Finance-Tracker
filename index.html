@@ -230,8 +230,28 @@
 </head>
 <body>
 
+<!-- ============ LOGIN SCREEN ============ -->
+<div id="loginScreen" class="panel" style="max-width:380px; margin:80px auto;">
+  <h2 style="margin-top:0;">Ledger — Sign in</h2>
+  <div class="field" style="margin-bottom:10px;">
+    <label>Email</label>
+    <input type="email" id="login-email" placeholder="you@example.com">
+  </div>
+  <div class="field" style="margin-bottom:14px;">
+    <label>Password</label>
+    <input type="password" id="login-password" placeholder="••••••••">
+  </div>
+  <button id="login-btn" style="width:100%;">Sign In</button>
+  <div id="login-error" style="color:var(--red); font-size:12px; margin-top:10px;"></div>
+</div>
+
+<!-- ============ MAIN APP ============ -->
+<div id="appScreen" style="display:none;">
+
 <h1>Ledger</h1>
-<div class="subtitle">A working double-entry book — one entry updates the P&amp;L, Balance Sheet and Cash Flow together.</div>
+<div class="subtitle">A working double-entry book — one entry updates the P&amp;L, Balance Sheet and Cash Flow together.
+  <button class="secondary" id="logout-btn" style="float:right; padding:4px 10px; font-size:11px;">Sign Out</button>
+</div>
 
 <div class="tabs" id="tabs"></div>
 
@@ -243,6 +263,26 @@
 
 <div id="content"></div>
 
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyC1nSU9KLWnK17yJ2hr2luO97GlD5eoJSw",
+    authDomain: "personal-finance-tracker-7efdf.firebaseapp.com",
+    projectId: "personal-finance-tracker-7efdf",
+    storageBucket: "personal-finance-tracker-7efdf.firebasestorage.app",
+    messagingSenderId: "417798096667",
+    appId: "1:417798096667:web:45dad4cf8570057391b5be"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db = firebase.firestore();
+  let currentUser = null;
+  let unsubscribeSnapshot = null;
+</script>
 <script>
 /* ==================================================================
    DATA MODEL
@@ -291,32 +331,38 @@ function monthLabel(key){
 }
 
 /* ---------------- persistence ----------------
-   Uses browser localStorage — works on any static host (GitHub Pages
-   included), unlike window.storage which only works inside Claude.ai's
-   artifact preview. Data persists per-browser, per-device. */
-const STORAGE_KEY = 'ledger-data';
+   Firestore, scoped to the signed-in user's UID. onSnapshot gives
+   real-time sync: a change on one device appears on other open
+   devices automatically, without needing a manual refresh. */
 
-async function loadData(){
-  try{
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if(raw){
-      DATA = JSON.parse(raw);
+function userDocRef(){
+  return db.collection('users').doc(currentUser.uid).collection('ledger').doc('data');
+}
+
+function startlistening(){
+  if(unsubscribeSnapshot) unsubscribeSnapshot();
+  unsubscribeSnapshot = userDocRef().onSnapshot(async (doc)=>{
+    const stamp = document.getElementById('statusStamp');
+    if(doc.exists){
+      const d = doc.data();
+      DATA = { accounts: d.accounts || [], entries: d.entries || [] };
     } else {
       DATA = { accounts: defaultAccounts(), entries: [] };
       await saveData();
-      return;
     }
-  }catch(e){
-    DATA = { accounts: defaultAccounts(), entries: [] };
-  }
-  document.getElementById('statusStamp').textContent = 'ready ✓';
+    stamp.textContent = 'synced ✓';
+    renderAll();
+  }, (err)=>{
+    document.getElementById('statusStamp').textContent = 'sync error — check connection';
+  });
 }
+
 async function saveData(){
   const stamp = document.getElementById('statusStamp');
   stamp.textContent = 'saving…';
   try{
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(DATA));
-    stamp.textContent = 'saved ✓';
+    await userDocRef().set({ accounts: DATA.accounts, entries: DATA.entries });
+    stamp.textContent = 'synced ✓';
   }catch(e){
     stamp.textContent = 'save failed — changes may be lost';
   }
@@ -684,14 +730,38 @@ function attachHandlers(){
   });
 }
 
-document.getElementById('fromDate').addEventListener('change', renderAll);
-document.getElementById('toDate').addEventListener('change', renderAll);
+/* ---------------- auth flow ---------------- */
+document.getElementById('login-btn').addEventListener('click', async ()=>{
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  errEl.textContent = '';
+  if(!email || !password){ errEl.textContent = 'Enter email and password.'; return; }
+  try{
+    await auth.signInWithEmailAndPassword(email, password);
+  }catch(e){
+    errEl.textContent = 'Sign-in failed: ' + e.message;
+  }
+});
 
-/* ---------------- boot ---------------- */
-(async function init(){
-  await loadData();
-  renderAll();
-})();
+document.getElementById('logout-btn').addEventListener('click', async ()=>{
+  if(unsubscribeSnapshot) unsubscribeSnapshot();
+  await auth.signOut();
+});
+
+auth.onAuthStateChanged((user)=>{
+  currentUser = user;
+  if(user){
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('appScreen').style.display = 'block';
+    startlistening(); // sets DATA and calls renderAll() once data arrives
+    document.getElementById('fromDate').addEventListener('change', renderAll);
+    document.getElementById('toDate').addEventListener('change', renderAll);
+  } else {
+    document.getElementById('loginScreen').style.display = 'block';
+    document.getElementById('appScreen').style.display = 'none';
+  }
+});
 </script>
 </body>
 </html>
