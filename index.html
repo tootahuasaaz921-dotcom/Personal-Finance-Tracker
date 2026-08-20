@@ -347,7 +347,19 @@ function startlistening(){
       const d = doc.data();
       DATA = { accounts: d.accounts || [], entries: d.entries || [] };
     } else {
-      DATA = { accounts: defaultAccounts(), entries: [] };
+      // Nothing in Firestore yet — try to migrate old localStorage data first.
+      let migrated = null;
+      try{
+        const raw = localStorage.getItem('ledger-data');
+        if(raw) migrated = JSON.parse(raw);
+      }catch(e){ /* ignore, fall through to fresh defaults */ }
+
+      if(migrated && (migrated.entries?.length || migrated.accounts?.length)){
+        DATA = { accounts: migrated.accounts || defaultAccounts(), entries: migrated.entries || [] };
+        stamp.textContent = 'migrating old data…';
+      } else {
+        DATA = { accounts: defaultAccounts(), entries: [] };
+      }
       await saveData();
     }
     stamp.textContent = 'synced ✓';
