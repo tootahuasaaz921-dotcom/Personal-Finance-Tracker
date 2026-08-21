@@ -258,6 +258,7 @@
 <div class="filterbar">
   <div><label for="fromDate">From</label><input type="date" id="fromDate"></div>
   <div><label for="toDate">To (also used as Balance Sheet "as of")</label><input type="date" id="toDate"></div>
+  <button class="secondary" id="restore-local-btn" style="font-size:11px; padding:6px 10px;">Restore this device's local backup</button>
   <div class="stamp" id="statusStamp">loading…</div>
 </div>
 
@@ -759,6 +760,25 @@ document.getElementById('login-btn').addEventListener('click', async ()=>{
 document.getElementById('logout-btn').addEventListener('click', async ()=>{
   if(unsubscribeSnapshot) unsubscribeSnapshot();
   await auth.signOut();
+});
+
+document.getElementById('restore-local-btn').addEventListener('click', async ()=>{
+  let local = null;
+  try{
+    const raw = localStorage.getItem('ledger-data');
+    if(raw) local = JSON.parse(raw);
+  }catch(e){ /* ignore */ }
+
+  if(!local || (!local.entries?.length && !local.accounts?.length)){
+    alert('No local backup found on this device/browser.');
+    return;
+  }
+  const entryCount = local.entries?.length || 0;
+  if(!confirm(`Found a local backup on this device with ${entryCount} entries. This will REPLACE the current cloud data with this backup. Continue?`)) return;
+
+  DATA = { accounts: local.accounts || defaultAccounts(), entries: local.entries || [] };
+  await saveData();
+  alert('Restored. Your local backup is now the cloud data.');
 });
 
 auth.onAuthStateChanged((user)=>{
